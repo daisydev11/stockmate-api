@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockMate API Consumer</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background: #f7f7f7;
+            color: #222;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input, button {
+            padding: 10px 12px;
+            font-size: 14px;
+        }
+
+        input {
+            flex: 1;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        #products {
+            display: grid;
+            gap: 12px;
+        }
+
+        .product {
+            background: white;
+            padding: 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .product h3 {
+            margin: 0 0 8px;
+        }
+
+        .status {
+            margin: 20px 0;
+            color: #555;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 25px;
+        }
+
+        .error {
+            color: #b00020;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>StockMate Products</h1>
+    <p class="subtitle">
+        Products loaded from the live StockMate API.
+    </p>
+
+    <div class="controls">
+        <input
+            id="search"
+            type="text"
+            placeholder="Filter products by name..."
+        >
+        <button onclick="applyFilter()">Filter</button>
+        <button onclick="clearFilter()">Clear</button>
+    </div>
+
+    <div id="status" class="status">Loading products...</div>
+
+    <div id="products"></div>
+
+    <div class="pagination">
+        <button id="previousButton" onclick="previousPage()">
+            Previous
+        </button>
+
+        <span id="pageInfo"></span>
+
+        <button id="nextButton" onclick="nextPage()">
+            Next Page
+        </button>
+    </div>
+
+    <script>
+        const API_URL =
+            "https://stockmate-api-one.vercel.app/api/v1/products";
+
+        const LIMIT = 20;
+
+        let offset = 0;
+        let searchValue = "";
+        let hasMore = false;
+
+        async function loadProducts() {
+            const productsContainer =
+                document.getElementById("products");
+
+            const status =
+                document.getElementById("status");
+
+            productsContainer.innerHTML = "";
+            status.className = "status";
+            status.textContent = "Loading products...";
+
+            try {
+                let url =
+                    `${API_URL}?limit=${LIMIT}&offset=${offset}`;
+
+                if (searchValue) {
+                    url += `&search=${encodeURIComponent(searchValue)}`;
+                }
+
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    throw new Error(
+                        `API returned ${response.status}`
+                    );
+                }
+
+                const result = await response.json();
+
+                hasMore = result.meta.hasMore;
+
+                if (result.data.length === 0) {
+                    status.textContent =
+                        "No products found.";
+
+                    updatePagination(result.meta);
+                    return;
+                }
+
+                status.textContent =
+                    `Showing ${result.data.length} of ${result.meta.total} products`;
+
+                result.data.forEach(product => {
+                    const card =
+                        document.createElement("div");
+
+                    card.className = "product";
+
+                    card.innerHTML = `
+                        <h3>${product.name}</h3>
+                        <p>${product.description || "No description"}</p>
+                        <strong>Price:</strong>
+                        ${(product.price / 100).toFixed(2)}
+                        <br>
+                        <strong>Stock:</strong>
+                        ${product.stock_quantity}
+                    `;
+
+                    productsContainer.appendChild(card);
+                });
+
+                updatePagination(result.meta);
+
+            } catch (error) {
+                status.className = "status error";
+                status.textContent =
+                    "Unable to load products from the API.";
+
+                console.error(error);
+            }
+        }
+
+        function updatePagination(meta) {
+            const currentPage =
+                Math.floor(meta.offset / meta.limit) + 1;
+
+            document.getElementById("pageInfo").textContent =
+                `Page ${currentPage}`;
+
+            document.getElementById("previousButton").disabled =
+                offset === 0;
+
+            document.getElementById("nextButton").disabled =
+                !meta.hasMore;
+        }
+
+        function nextPage() {
+            if (hasMore) {
+                offset += LIMIT;
+                loadProducts();
+            }
+        }
+
+        function previousPage() {
+            if (offset >= LIMIT) {
+                offset -= LIMIT;
+                loadProducts();
+            }
+        }
+
+        function applyFilter() {
+            searchValue =
+                document.getElementById("search").value.trim();
+
+            offset = 0;
+            loadProducts();
+        }
+
+        function clearFilter() {
+            document.getElementById("search").value = "";
+            searchValue = "";
+            offset = 0;
+            loadProducts();
+        }
+
+        loadProducts();
+    </script>
+
+</body>
+</html>
